@@ -1,0 +1,7 @@
+# nothing from a live mailbox should ever be committed
+mailbox/
+*.lock
+*.jsonl
+registry.json
+titles.json
+*.bak-*
