@@ -264,10 +264,14 @@ try {
     $full = $cardArr[0]
     $keep = [Math]::Max(500, $room)
     if ($keep -lt $full.Length) {
+      # Say what is missing and give an instruction that WORKS. An earlier version pointed at
+      # `msg.ps1 history`, a command that does not exist -- and the test asserted only that
+      # the notice appeared, so the suite stayed green while directing readers at nothing.
       $cardArr[0] = $full.Substring(0, $keep) +
         "`n`n[CUT: this single message is " + $full.Length + " characters and cannot fit in one " +
-        "delivery. About " + ($full.Length - $keep) + " characters are NOT shown above. The full " +
-        "text is still stored -- run: msg.ps1 history " + $me + " 1]"
+        "delivery. About " + ($full.Length - $keep) + " characters are NOT shown above, and there " +
+        "is no way to retrieve them from here. Ask " + (@($pending)[0].from) + " to resend the " +
+        "remainder as several shorter messages.]"
     }
     $shown = 1
   }

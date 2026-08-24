@@ -193,6 +193,10 @@ try {
   $r4 = Deliver $A
   Check "oversized single message is delivered"    ($r4 -and $r4 -match 'ZZZ')
   Check "oversized single message says it was cut" ($r4 -and $r4 -match 'CUT: this single message')
+  # The notice must point at something that EXISTS. It once told readers to run
+  # `msg.ps1 history`, which was never implemented -- and this suite stayed green because it
+  # only checked that a notice appeared, never that its advice was actionable.
+  Check "cut notice names a real remedy"           ($r4 -and $r4 -match 'resend the remainder' -and $r4 -notmatch 'msg\.ps1 history') "the cut notice points at a command that does not exist"
   Check "oversized single message does not jam"    ((Unread 'alpha') -eq 0) "it stayed unread, so it would redeliver forever"
 
   Write-Host ""
