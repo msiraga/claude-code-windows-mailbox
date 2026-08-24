@@ -163,7 +163,7 @@ session missing from that window has not necessarily stopped firing — the auth
 powershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1
 ```
 
-34 checks against a throwaway mailbox in `TEMP`; nothing real is touched and the sandbox
+47 checks against a throwaway mailbox in `TEMP`; nothing real is touched and the sandbox
 is deleted afterwards. Exit 0 means all passed. It cannot check whether Claude Code
 actually invokes the hooks on that machine — it prints the one manual step that proves
 that, and that step is the only way to close the gap on a new box.

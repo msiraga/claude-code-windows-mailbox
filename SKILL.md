@@ -104,7 +104,7 @@ after install, not the one running the installer.
 powershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1
 ```
 
-34 checks against a throwaway mailbox under `TEMP` — routing, all three framing
+47 checks against a throwaway mailbox under `TEMP` — routing, all three framing
 branches (peer / unverified / mixed), the message card's sender and trust labelling,
 the reply norms, delivery-once (no redelivery loop), pruning, the rate cap's fail-safe,
 and the watcher's silence on a quiet inbox. Nothing real is touched; exit 0 means all

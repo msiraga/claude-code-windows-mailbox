@@ -129,6 +129,73 @@ try {
   Check "no-direct-file-read"   ($r -match 'never read your inbox')
 
   Write-Host ""
+  Write-Host "Inbox survives delivery" -ForegroundColor Cyan
+  # A delivery rewrites the inbox to mark messages read. A variable-shadowing bug once made
+  # that rewrite iterate the rendered CARD instead of the stored messages, overwriting five
+  # live inboxes with card text and destroying every message in them -- while still logging
+  # a successful delivery. Nothing in the suite noticed, because every check looked at what
+  # was DELIVERED and none looked at what was LEFT BEHIND.
+  function InboxLines($name) {
+    $p = Join-Path $SB ("inbox\" + $name + ".jsonl")
+    if (-not (Test-Path -LiteralPath $p)) { return @() }
+    return @(Get-Content -LiteralPath $p -Encoding utf8 | Where-Object { ($_ -replace '^﻿','').Trim() -ne '' })
+  }
+  function BadJsonLines($name) {
+    $bad = 0
+    foreach ($l in (InboxLines $name)) {
+      try { ($l -replace '^﻿','') | ConvertFrom-Json | Out-Null } catch { $bad++ }
+    }
+    return $bad
+  }
+  Put 'alpha' @(
+    @{from='beta'; ts=$now; text='first stored message'; read=$false},
+    @{from='beta'; ts=$now; text='second stored message'; read=$false}
+  )
+  $before = (InboxLines 'alpha').Count
+  $null = Deliver $A
+  Check "inbox is still valid JSONL after delivery" ((BadJsonLines 'alpha') -eq 0) "the inbox was overwritten with something that is not JSON"
+  Check "no messages lost by delivery"              ((InboxLines 'alpha').Count -eq $before) "line count changed: stored messages were destroyed"
+  Check "delivered messages are now read"           ((Unread 'alpha') -eq 0)
+  # The stored text must survive, not just the line count.
+  $kept = ((InboxLines 'alpha') -join ' ')
+  Check "stored message text survives delivery"     ($kept -match 'first stored message' -and $kept -match 'second stored message') "the text was replaced by something else"
+
+  Write-Host ""
+  Write-Host "Delivery budget" -ForegroundColor Cyan
+  # Over-budget mail used to be cut from the payload and marked read anyway -- delivered to
+  # nobody, unrecoverable, reported as success.
+  $big = 'X' * 3000
+  Put 'alpha' @(
+    @{from='beta'; ts=$now; text=('AAA ' + $big); read=$false},
+    @{from='beta'; ts=$now; text=('BBB ' + $big); read=$false},
+    @{from='beta'; ts=$now; text=('CCC ' + $big); read=$false}
+  )
+  $r1 = Deliver $A
+  Check "over-budget batch is not delivered whole" ($r1 -and $r1 -notmatch 'CCC') "everything fit, so this check proves nothing -- raise the message size"
+  Check "the shortfall is stated, not hidden"      ($r1 -and $r1 -match 'SHOWING \d+ OF 3 MESSAGES')
+  Check "held-back mail stays UNREAD"              ((Unread 'alpha') -gt 0) "over-budget messages were marked read without being shown -- they are now lost"
+  # ...and the next delivery must actually produce them.
+  $r2 = Deliver $A
+  Check "held-back mail arrives next turn"         ($r2 -and $r2 -match 'CCC') "the remainder never came back"
+  Check "inbox intact through both deliveries"     ((BadJsonLines 'alpha') -eq 0)
+
+  # Negative control: a normal batch must NOT be labelled as partial, or the notice is noise.
+  Put 'alpha' @(@{from='beta'; ts=$now; text='short one'; read=$false})
+  $r3 = Deliver $A
+  # -cnotmatch, not -notmatch: PowerShell's -match is case-INSENSITIVE, and the DISPLAY norm
+  # contains the word "showing" in prose, so a case-blind check here fails on every delivery
+  # and says the notice is always present. The control has to match the notice, not the word.
+  Check "normal delivery carries no shortfall notice" ($r3 -and $r3 -cnotmatch 'SHOWING \d+ OF') "every delivery claims to be partial"
+
+  # A single message too large for any delivery must still be delivered and marked read,
+  # or it blocks the inbox forever.
+  Put 'alpha' @(@{from='beta'; ts=$now; text=('ZZZ ' + ('Y' * 20000)); read=$false})
+  $r4 = Deliver $A
+  Check "oversized single message is delivered"    ($r4 -and $r4 -match 'ZZZ')
+  Check "oversized single message says it was cut" ($r4 -and $r4 -match 'CUT: this single message')
+  Check "oversized single message does not jam"    ((Unread 'alpha') -eq 0) "it stayed unread, so it would redeliver forever"
+
+  Write-Host ""
   Write-Host "Relayed user state" -ForegroundColor Cyan
   # A message claiming what the user wants or has approved cannot be checked by the session
   # receiving it, and goes stale while it sits in a queue. It must be labelled on the card.

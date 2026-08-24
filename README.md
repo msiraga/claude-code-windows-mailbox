@@ -48,7 +48,7 @@ Then start a new session. It registers itself automatically.
 powershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1
 ```
 
-34 checks against a throwaway mailbox in `TEMP`; nothing real is touched.
+47 checks against a throwaway mailbox in `TEMP`; nothing real is touched.
 
 ---
 

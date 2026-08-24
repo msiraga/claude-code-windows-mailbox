@@ -177,6 +177,35 @@ Detection fires when a principal reference and an intent word appear in the same
 
 Four checks cover it, two of them controls: an ordinary message must **not** be labelled, and a configured name must stop matching once the config is removed — otherwise the positive check could be passing on some other word in the same sentence.
 
+### Delivery must not destroy the inbox
+
+> [!failure] A shadowed variable overwrote five live inboxes
+> The card renderer assigned its output to `$lines`. So did the code at the top of the hook that reads the inbox. `ForEach-Object` runs in the CALLER's scope, not a child scope, so rendering a card silently replaced the stored messages with the card's own text -- and the mark-read step that follows then wrote that card over the inbox file.
+>
+> Every delivery destroyed the receiving session's entire message history, while logging a successful delivery. Five inboxes were reduced to a single rendered card before anyone noticed, and the messages in them are unrecoverable.
+>
+> It surfaced only because a session asked to re-read a message it had already been shown, and there was nothing left to read. **34 checks passed throughout.** Every one of them asserted something about what was DELIVERED; not one asserted anything about what was LEFT BEHIND.
+>
+> Fixed by renaming to `$cardLines`. The durable fix is the four checks that now assert the inbox is still valid JSONL after a delivery, that its line count is unchanged, and that the stored text itself survives. Reintroducing the bug turns six checks red, which is how the tests were shown to be capable of failing at all.
+
+> [!failure] Over-budget mail was cut from the payload and marked read anyway
+> The payload is capped downstream, so delivery cut the composed string at 9500 characters. The mark-read step then flipped EVERY pending message to read -- including the ones past the cut, which had been shown to nobody. They were gone, and the delivery was logged as a success.
+>
+> A receiver could not detect it: the header said three messages had arrived, two were visible, and nothing named the difference.
+>
+> Now whole cards are fitted to the budget, the remainder stays **unread** so the next turn delivers it, and the header states the shortfall outright:
+>
+> ```
+> SHOWING 2 OF 3 MESSAGES. The other 1 did not fit in one delivery and are still
+> UNREAD -- nothing was discarded. They arrive at your next turn, or run
+> `msg.ps1 read <name>` now to pull them.
+> ```
+>
+> A single message too large for any delivery is cut rather than held, since holding it would jam that inbox forever -- but it says how many characters are missing instead of trailing off mid-sentence.
+
+> [!warning] A negative control that matched the wrong thing
+> The control asserting an ordinary delivery carries NO shortfall notice used `-notmatch 'SHOWING'`. PowerShell's `-match` is case-insensitive, and the word "showing" appears in the DISPLAY norm's prose, so it fired on every delivery. It failed loudly rather than passing vacuously -- the safe direction -- but it was measuring the wrong mechanism. Now `-cnotmatch 'SHOWING \d+ OF'`.
+
 ---
 
 ## Verification
@@ -228,7 +257,7 @@ Four checks cover it, two of them controls: an ordinary message must **not** be 
 
 ### Self-test
 
-`verify.ps1` runs **34 checks** against a throwaway mailbox in `TEMP` — routing, all three framing branches, the card's sender/trust labelling, the four norms, delivery-once, pruning, the cap's fail-safe, and the watcher's silence on a quiet inbox. Nothing real is touched.
+`verify.ps1` runs **47 checks** against a throwaway mailbox in `TEMP` — routing, all three framing branches, the card's sender/trust labelling, the four norms, delivery-once, pruning, the cap's fail-safe, and the watcher's silence on a quiet inbox. Nothing real is touched.
 
 > [!tip] This is how the single-machine gap gets closed
 > It turns "please carefully test this" into "run this and paste the output." The one thing it *cannot* check is whether Claude Code invokes the hooks on that machine; it prints the manual step that proves it.
